@@ -57,7 +57,17 @@
             android:layout_marginBottom="12dp"
             android:paddingStart="8dp" />
         
-        <!-- Shop Name Field -->
+        <!-- Shop Name Label & Field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Shop Name *"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="8dp" />
+        
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -69,10 +79,10 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxStrokeColor="@color/text_light"
             app:boxStrokeWidth="1dp"
-            android:hint="Shop Name"
+            android:hint="Enter shop name"
             app:hintTextColor="@color/text_light"
             app:helperTextEnabled="true"
-            app:helperText="Enter the shop name (100 chars max)">
+            app:helperText="Maximum 100 characters">
             
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_shop_name"
@@ -88,7 +98,17 @@
                 android:paddingBottom="14dp" />
         </com.google.android.material.textfield.TextInputLayout>
         
-        <!-- Order Date Field -->
+        <!-- Order Date Label & Field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Order Date *"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="8dp" />
+        
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -100,10 +120,10 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxStrokeColor="@color/text_light"
             app:boxStrokeWidth="1dp"
-            android:hint="Order Date"
+            android:hint="Select order date"
             app:hintTextColor="@color/text_light"
             app:helperTextEnabled="true"
-            app:helperText="Select date (dd/MM/yyyy)">
+            app:helperText="Format: dd/MM/yyyy">
             
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_order_date"
@@ -120,7 +140,17 @@
                 android:paddingBottom="14dp" />
         </com.google.android.material.textfield.TextInputLayout>
         
-        <!-- Salesman Name Field -->
+        <!-- Salesman Name Label & Field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Salesman Name *"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="8dp" />
+        
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -132,7 +162,7 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxStrokeColor="@color/text_light"
             app:boxStrokeWidth="1dp"
-            android:hint="Salesman Name"
+            android:hint="Enter salesman name"
             app:hintTextColor="@color/text_light"
             app:helperTextEnabled="true"
             app:helperText="Your name or sales rep name">
@@ -169,7 +199,17 @@
             android:layout_marginBottom="12dp"
             android:paddingStart="8dp" />
         
-        <!-- Number of Boxes Field -->
+        <!-- Number of Boxes Label & Field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Number of Boxes *"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="8dp" />
+        
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -181,7 +221,7 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxStrokeColor="@color/text_light"
             app:boxStrokeWidth="1dp"
-            android:hint="Number of Boxes"
+            android:hint="Enter number"
             app:hintTextColor="@color/text_light"
             app:helperTextEnabled="true"
             app:helperText="Positive integer value">
@@ -199,7 +239,17 @@
                 android:paddingBottom="14dp" />
         </com.google.android.material.textfield.TextInputLayout>
         
-        <!-- Specification Field -->
+        <!-- Specification Label & Field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Specification"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="8dp" />
+        
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -211,12 +261,12 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxStrokeColor="@color/text_light"
             app:boxStrokeWidth="1dp"
-            android:hint="Specification (Optional)"
+            android:hint="Enter product details"
             app:hintTextColor="@color/text_light"
             app:counterEnabled="true"
             app:counterMaxLength="500"
             app:helperTextEnabled="true"
-            app:helperText="Product details or notes">
+            app:helperText="Product details (optional)">
             
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_specification"
@@ -234,7 +284,17 @@
                 android:paddingBottom="14dp" />
         </com.google.android.material.textfield.TextInputLayout>
         
-        <!-- Amount per Box Field -->
+        <!-- Amount per Box Label & Field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Amount per Box (₹) *"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="8dp" />
+        
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -246,7 +306,7 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxStrokeColor="@color/text_light"
             app:boxStrokeWidth="1dp"
-            android:hint="Amount per Box (₹)"
+            android:hint="Enter price"
             app:hintTextColor="@color/text_light"
             app:prefixText="₹ "
             app:helperTextEnabled="true"
@@ -320,7 +380,17 @@
             android:layout_marginBottom="12dp"
             android:paddingStart="8dp" />
         
-        <!-- Location Field -->
+        <!-- Location Label & Field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Location / City *"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="8dp" />
+        
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -332,7 +402,7 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxStrokeColor="@color/text_light"
             app:boxStrokeWidth="1dp"
-            android:hint="Location / City"
+            android:hint="Enter city or area"
             app:hintTextColor="@color/text_light"
             app:helperTextEnabled="true"
             app:helperText="Delivery city or area">
@@ -351,7 +421,17 @@
                 android:paddingBottom="14dp" />
         </com.google.android.material.textfield.TextInputLayout>
         
-        <!-- Phone Number Field -->
+        <!-- Phone Number Label & Field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Phone Number *"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="8dp" />
+        
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -363,7 +443,7 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxStrokeColor="@color/text_light"
             app:boxStrokeWidth="1dp"
-            android:hint="Phone Number"
+            android:hint="Enter phone number"
             app:hintTextColor="@color/text_light"
             app:helperTextEnabled="true"
             app:helperText="10-digit Indian number">
