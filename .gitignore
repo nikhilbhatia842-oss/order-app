@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+*.apk
+*.aar
+
+# Android
+.idea/
+*.iml
+.DS_Store
+local.properties
+*.log
+
+# IDE
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Build outputs
+/release/
+/debug/

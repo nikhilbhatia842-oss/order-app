@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.orderapp">
+
+    <!-- Internet permission for Telegram API -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.OrderApp"
+        android:usesCleartextTraffic="true">
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Debug broadcast receiver for ADB testing -->
+        <receiver
+            android:name=".DebugBroadcastReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.orderapp.TEST_SUBMIT" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+
+</manifest>
