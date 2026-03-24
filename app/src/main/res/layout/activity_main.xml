@@ -10,34 +10,6 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
         
-        <!-- Modern Header with Gradient-like effect -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@color/primary"
-            android:padding="32dp">
-            
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Order Submission"
-                android:textSize="32sp"
-                android:textStyle="bold"
-                android:textColor="@color/white"
-                android:gravity="start"
-                android:layout_marginBottom="4dp" />
-            
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Submit your order details to Telegram"
-                android:textSize="14sp"
-                android:textColor="@color/white"
-                android:gravity="start"
-                android:alpha="0.85" />
-        </LinearLayout>
-        
         <!-- Main Content -->
         <LinearLayout
             android:layout_width="match_parent"
