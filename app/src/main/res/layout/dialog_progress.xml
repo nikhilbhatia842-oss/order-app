@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:minWidth="220dp"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp">
+
+    <FrameLayout
+        android:layout_width="80dp"
+        android:layout_height="80dp">
+
+        <ProgressBar
+            android:id="@+id/progress_sending"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:indeterminate="true" />
+
+        <ImageView
+            android:id="@+id/iv_success_tick"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/ic_check_circle"
+            android:visibility="gone"
+            android:contentDescription="Success" />
+
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tv_sending_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Sending order…"
+        android:textSize="16sp"
+        android:textColor="@android:color/black" />
+
+</LinearLayout>

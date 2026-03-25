@@ -4,12 +4,16 @@ import android.app.DatePickerDialog;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -21,8 +25,6 @@ import com.orderapp.api.TelegramResponse;
 import com.orderapp.model.OrderData;
 import com.orderapp.validator.FormDataValidator;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
@@ -43,6 +45,9 @@ public class MainActivity extends AppCompatActivity {
     private EditText etLocation;
     private EditText etPhoneNumber;
     private Button btnSubmit;
+    private AlertDialog progressDialog;
+    private ProgressBar progressSendingBar;
+    private ImageView ivSuccessTick;
     
     private DebugBroadcastReceiver debugReceiver;
     
@@ -112,7 +117,16 @@ public class MainActivity extends AppCompatActivity {
         etAmountPerBox.addTextChangedListener(numberWatcher);
         
         // Submit button
-        btnSubmit.setOnClickListener(v -> submitForm());
+        btnSubmit.setOnClickListener(v -> showConfirmationDialog());
+    }
+
+    private void showConfirmationDialog() {
+        new androidx.appcompat.app.AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert)
+                .setTitle("Confirm Submission")
+                .setMessage("Are you sure you want to submit this order?")
+                .setPositiveButton("Yes, Submit", (dialog, which) -> submitForm())
+                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                .show();
     }
     
     private void showDatePicker() {
@@ -175,37 +189,22 @@ public class MainActivity extends AppCompatActivity {
         android.util.Log.d("SubmitOrder", "  - location: '" + location + "' (length: " + location.length() + ")");
         android.util.Log.d("SubmitOrder", "  - phoneNumber: '" + phoneNumber + "'");
         
-        // Step 2: Check if all fields are empty
-        android.util.Log.d("SubmitOrder", "📋 STEP 2: Checking if all fields are empty...");
-        boolean allFieldsEmpty = shopName.isEmpty() && orderDate.isEmpty() && 
-                                 salesmanName.isEmpty() && numberOfBoxes.isEmpty() && 
-                                 specification.isEmpty() && amountPerBox.isEmpty() && 
-                                 location.isEmpty() && phoneNumber.isEmpty();
-        
-        android.util.Log.d("SubmitOrder", "  - All fields empty: " + allFieldsEmpty);
-        
+        // Step 2: If all fields empty, send sample payload silently
+        boolean allFieldsEmpty = shopName.isEmpty() && orderDate.isEmpty() &&
+                salesmanName.isEmpty() && numberOfBoxes.isEmpty() &&
+                specification.isEmpty() && amountPerBox.isEmpty() &&
+                location.isEmpty() && phoneNumber.isEmpty();
+
         if (allFieldsEmpty) {
-            android.util.Log.d("SubmitOrder", "🧪 TEST MODE ACTIVATED - Creating sample data");
-            Toast.makeText(this, "📋 Test Mode: Sending sample data...", Toast.LENGTH_SHORT).show();
-            
-            // Create sample OrderData for testing
+            android.util.Log.d("SubmitOrder", "All fields empty — sending sample payload");
             OrderData sampleData = new OrderData(
-                    "Test Shop",
-                    "24/03/2026",
-                    "Test Salesman",
-                    100,
-                    "Test specification with sample details",
-                    250.50,
-                    "Test Location",
-                    "9876543210"
+                    "Sample Shop", "25/03/2026", "Sample Salesman",
+                    10, "Sample specification", 250.00, "Sample City", "9876543210"
             );
-            
-            android.util.Log.d("SubmitOrder", "  - Sample data JSON: " + new Gson().toJson(sampleData));
-            android.util.Log.d("SubmitOrder", "🔄 Sending test sample to Telegram...");
             sendToTelegram(sampleData);
             return;
         }
-        
+
         // Step 3: Validate all fields
         android.util.Log.d("SubmitOrder", "✅ STEP 3: Validating all form fields...");
         FormDataValidator.ValidationError validationError = FormDataValidator.validateAllFields(
@@ -250,7 +249,10 @@ public class MainActivity extends AppCompatActivity {
             
         } catch (NumberFormatException e) {
             android.util.Log.e("SubmitOrder", "❌ NumberFormatException: " + e.getMessage(), e);
-            showErrorDialog("Error", "Invalid input format");
+            showErrorDialog("Error", "Invalid number format in the boxes or amount field.");
+        } catch (Exception e) {
+            android.util.Log.e("SubmitOrder", "❌ Unexpected error during form submission: " + e.getMessage(), e);
+            showErrorDialog("Error", "An unexpected error occurred. Please verify your inputs and try again.");
         }
         
         long duration = System.currentTimeMillis() - startTime;
@@ -259,15 +261,18 @@ public class MainActivity extends AppCompatActivity {
     
     private void sendToTelegram(OrderData orderData) {
         long apiStartTime = System.currentTimeMillis();
-        
-        android.util.Log.d("TelegramAPI", "════════════════════════════════════════════");
-        android.util.Log.d("TelegramAPI", "🌐 TELEGRAM API REQUEST INITIATED");
+
+        if (!isNetworkAvailable()) {
+            showErrorDialog("No Internet", "Please check your internet connection and try again.");
+            return;
+        }
+
         android.util.Log.d("TelegramAPI", "════════════════════════════════════════════");
         android.util.Log.d("TelegramAPI", "Timestamp: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(new java.util.Date()));
         
         // Disable submit button during submission
+        showProgressDialog();
         btnSubmit.setEnabled(false);
-        btnSubmit.setText("Submitting...");
         android.util.Log.d("TelegramAPI", "📌 Submit button disabled");
         
         // Step 1: Get order data details
@@ -289,6 +294,9 @@ public class MainActivity extends AppCompatActivity {
         // Step 3: Format message for Telegram
         android.util.Log.d("TelegramAPI", "✏️ STEP 3: Formatting message for Telegram...");
         String message = formatOrderDataMessage(orderData);
+        if (message.length() > 4096) {
+            message = message.substring(0, 4093) + "...";
+        }
         android.util.Log.d("TelegramAPI", "  - Message length: " + message.length() + " characters");
         android.util.Log.d("TelegramAPI", "  - Message preview: " + message.substring(0, Math.min(100, message.length())) + "...");
         android.util.Log.d("TelegramAPI", "  - Full message:\n" + message);
@@ -319,106 +327,94 @@ public class MainActivity extends AppCompatActivity {
         // Step 6: Execute API call
         android.util.Log.d("TelegramAPI", "🚀 STEP 6: Executing API call...");
         long callStartTime = System.currentTimeMillis();
-        
-        // URL-encode the bot token to handle the colon safely
-        String encodedBotToken;
-        try {
-            encodedBotToken = URLEncoder.encode(botToken, StandardCharsets.UTF_8.toString());
-            android.util.Log.d("TelegramAPI", "  - Bot token URL-encoded: " + maskSensitiveData(encodedBotToken));
-        } catch (Exception e) {
-            android.util.Log.e("TelegramAPI", "  - Failed to URL-encode bot token: " + e.getMessage(), e);
-            encodedBotToken = botToken; // Fall back to original
-        }
-        
+
         Call<TelegramResponse> call = service.sendMessage(
-                encodedBotToken,
+                botToken,
                 chatId,
                 message,
                 "HTML"
         );
-        
+
         android.util.Log.d("TelegramAPI", "  - Call queued at: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(new java.util.Date()));
-        
+
         // Step 7: Handle response
         call.enqueue(new Callback<TelegramResponse>() {
             @Override
             public void onResponse(Call<TelegramResponse> call, Response<TelegramResponse> response) {
-                long callDuration = System.currentTimeMillis() - callStartTime;
-                
-                android.util.Log.d("TelegramAPI", "════════════════════════════════════════════");
-                android.util.Log.d("TelegramAPI", "✅ API RESPONSE RECEIVED");
-                android.util.Log.d("TelegramAPI", "════════════════════════════════════════════");
-                android.util.Log.d("TelegramAPI", "⏱️  Response time: " + callDuration + "ms");
-                android.util.Log.d("TelegramAPI", "📊 STEP 7: Handling response...");
-                
-                // Re-enable submit button
-                btnSubmit.setEnabled(true);
-                btnSubmit.setText("✓ SUBMIT ORDER");
-                android.util.Log.d("TelegramAPI", "  - Submit button re-enabled");
-                
-                // Log response details
-                android.util.Log.d("TelegramAPI", "📍 Response Details:");
-                android.util.Log.d("TelegramAPI", "  - HTTP Status Code: " + response.code());
-                android.util.Log.d("TelegramAPI", "  - Is Successful: " + response.isSuccessful());
-                android.util.Log.d("TelegramAPI", "  - Headers: " + response.headers());
-                
-                if (response.body() != null) {
-                    TelegramResponse body = response.body();
-                    android.util.Log.d("TelegramAPI", "  - Response Body:");
-                    android.util.Log.d("TelegramAPI", "    • OK: " + body.isSuccess());
-                    android.util.Log.d("TelegramAPI", "    • Description: " + body.getDescription());
-                    android.util.Log.d("TelegramAPI", "    • Error Code: " + body.getErrorCode());
-                    android.util.Log.d("TelegramAPI", "    • Full JSON: " + new Gson().toJson(body));
-                } else {
-                    android.util.Log.w("TelegramAPI", "  - Response body is null");
-                }
-                
-                // Check if successful
-                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    android.util.Log.d("TelegramAPI", "✅ SUCCESS: Order submitted to Telegram successfully!");
-                    android.util.Log.d("TelegramAPI", "🎉 SUBMISSION COMPLETE");
-                    long totalDuration = System.currentTimeMillis() - apiStartTime;
-                    android.util.Log.d("TelegramAPI", "⏱️  Total API time: " + totalDuration + "ms");
-                    showSuccessDialog();
-                } else {
-                    String errorMsg = response.body() != null ? response.body().getDescription() : "Unknown error (Code: " + response.code() + ")";
-                    android.util.Log.e("TelegramAPI", "❌ FAILURE: " + errorMsg);
-                    android.util.Log.e("TelegramAPI", "  - Error occurred at: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(new java.util.Date()));
-                    showRetryDialog("Submission Error", errorMsg);
+                try {
+                    long callDuration = System.currentTimeMillis() - callStartTime;
+                    android.util.Log.d("TelegramAPI", "Response received in " + callDuration + "ms, HTTP " + response.code());
+
+                    // Log response details
+                    android.util.Log.d("TelegramAPI", "📍 Response Details:");
+                    android.util.Log.d("TelegramAPI", "  - HTTP Status Code: " + response.code());
+                    android.util.Log.d("TelegramAPI", "  - Is Successful: " + response.isSuccessful());
+                    android.util.Log.d("TelegramAPI", "  - Headers: " + response.headers());
+
+                    if (response.body() != null) {
+                        TelegramResponse body = response.body();
+                        android.util.Log.d("TelegramAPI", "  - Response Body:");
+                        android.util.Log.d("TelegramAPI", "    • OK: " + body.isSuccess());
+                        android.util.Log.d("TelegramAPI", "    • Description: " + body.getDescription());
+                        android.util.Log.d("TelegramAPI", "    • Error Code: " + body.getErrorCode());
+                        android.util.Log.d("TelegramAPI", "    • Full JSON: " + new Gson().toJson(body));
+                    } else {
+                        android.util.Log.w("TelegramAPI", "  - Response body is null");
+                    }
+
+                    // Check if successful
+                    if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                        android.util.Log.d("TelegramAPI", "✅ SUCCESS: Order submitted successfully!");
+                        long totalDuration = System.currentTimeMillis() - apiStartTime;
+                        android.util.Log.d("TelegramAPI", "⏱️  Total API time: " + totalDuration + "ms");
+                        transitionToSuccess();
+                    } else {
+                        String errorMsg = (response.body() != null && response.body().getDescription() != null)
+                                ? response.body().getDescription()
+                                : getApiErrorMessage(response.code());
+                        android.util.Log.e("TelegramAPI", "❌ FAILURE (HTTP " + response.code() + "): " + errorMsg);
+                        hideProgressDialog();
+                        if (btnSubmit != null) {
+                            btnSubmit.setEnabled(true);
+                            btnSubmit.setText("Submit Order");
+                        }
+                        showRetryDialog("Submission Failed", errorMsg);
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("TelegramAPI", "Crash averted inside onResponse", e);
+                    hideProgressDialog();
+                    if (btnSubmit != null) {
+                        btnSubmit.setEnabled(true);
+                        btnSubmit.setText("Submit Order");
+                    }
                 }
             }
-            
+
             @Override
             public void onFailure(Call<TelegramResponse> call, Throwable t) {
-                long callDuration = System.currentTimeMillis() - callStartTime;
-                
-                android.util.Log.e("TelegramAPI", "════════════════════════════════════════════");
-                android.util.Log.e("TelegramAPI", "❌ API REQUEST FAILED");
-                android.util.Log.e("TelegramAPI", "════════════════════════════════════════════");
-                android.util.Log.e("TelegramAPI", "⏱️  Time before failure: " + callDuration + "ms");
-                
-                // Re-enable submit button
-                btnSubmit.setEnabled(true);
-                btnSubmit.setText("✓ SUBMIT ORDER");
-                android.util.Log.e("TelegramAPI", "  - Submit button re-enabled");
-                
-                // Log failure details
-                android.util.Log.e("TelegramAPI", "🚨 Error Details:");
-                android.util.Log.e("TelegramAPI", "  - Exception Type: " + t.getClass().getSimpleName());
-                android.util.Log.e("TelegramAPI", "  - Exception Message: " + (t.getMessage() != null ? t.getMessage() : "null"));
-                android.util.Log.e("TelegramAPI", "  - Stack Trace: " + android.util.Log.getStackTraceString(t));
-                
-                String errorDetail = t.getMessage() != null ? t.getMessage() : "Unable to connect to Telegram API";
-                android.util.Log.e("TelegramAPI", "  - User friendly message: " + errorDetail);
-                
-                android.util.Log.e("TelegramAPI", "💡 Common Causes:");
-                android.util.Log.e("TelegramAPI", "  1. No internet connection");
-                android.util.Log.e("TelegramAPI", "  2. Telegram API is unreachable");
-                android.util.Log.e("TelegramAPI", "  3. Bot token is invalid");
-                android.util.Log.e("TelegramAPI", "  4. Chat ID is invalid");
-                android.util.Log.e("TelegramAPI", "  5. Request timeout");
-                
-                showRetryDialog("Network Error", "Make sure:\n• Internet is ON\n• Bot was started in Telegram\n\nError: " + errorDetail);
+                try {
+                    android.util.Log.e("TelegramAPI", "❌ API REQUEST FAILED: " + (t != null ? t.getClass().getSimpleName() + " - " + t.getMessage() : "unknown"));
+                    if (t != null) android.util.Log.e("TelegramAPI", android.util.Log.getStackTraceString(t));
+
+                    hideProgressDialog();
+                    if (btnSubmit != null) {
+                        btnSubmit.setEnabled(true);
+                        btnSubmit.setText("Submit Order");
+                    }
+
+                    String userMsg;
+                    if (t instanceof java.net.SocketTimeoutException) {
+                        userMsg = "Request timed out. Check your connection and retry.";
+                    } else if (t instanceof java.net.UnknownHostException) {
+                        userMsg = "Cannot reach the server. Check your internet connection.";
+                    } else {
+                        userMsg = (t != null && t.getMessage() != null) ? t.getMessage() : "Unable to connect. Please try again.";
+                    }
+                    showRetryDialog("Network Error", userMsg);
+                } catch (Exception e) {
+                    android.util.Log.e("TelegramAPI", "Crash averted inside onFailure", e);
+                    hideProgressDialog();
+                }
             }
         });
     }
@@ -428,6 +424,104 @@ public class MainActivity extends AppCompatActivity {
             return "***";
         }
         return data.substring(0, 4) + "***" + data.substring(Math.max(0, data.length() - 4));
+    }
+
+    private void showProgressDialog() {
+        try {
+            if (isFinishing() || isDestroyed()) return;
+            android.view.View dialogView = getLayoutInflater().inflate(R.layout.dialog_progress, null);
+            progressSendingBar = dialogView.findViewById(R.id.progress_sending);
+            ivSuccessTick = dialogView.findViewById(R.id.iv_success_tick);
+            progressDialog = new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert)
+                    .setView(dialogView)
+                    .setCancelable(false)
+                    .create();
+            progressDialog.show();
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Failed to show progress dialog", e);
+        }
+    }
+
+    private void hideProgressDialog() {
+        try {
+            if (progressDialog != null && progressDialog.isShowing()) {
+                progressDialog.dismiss();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Failed to dismiss progress dialog", e);
+        } finally {
+            progressDialog = null;
+            progressSendingBar = null;
+            ivSuccessTick = null;
+        }
+    }
+
+    private void transitionToSuccess() {
+        try {
+            if (isFinishing() || isDestroyed()) return;
+            if (progressSendingBar == null || ivSuccessTick == null) {
+                hideProgressDialog();
+                if (btnSubmit != null) { btnSubmit.setEnabled(true); btnSubmit.setText("Submit Order"); }
+                showSuccessDialog();
+                return;
+            }
+            // Swap spinner for green tick
+            progressSendingBar.setVisibility(View.GONE);
+            ivSuccessTick.setAlpha(0f);
+            ivSuccessTick.setScaleX(0.3f);
+            ivSuccessTick.setScaleY(0.3f);
+            ivSuccessTick.setVisibility(View.VISIBLE);
+            ivSuccessTick.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(400)
+                    .start();
+            // After letting the tick show, dismiss and show success dialog
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    hideProgressDialog();
+                    if (btnSubmit != null) { btnSubmit.setEnabled(true); btnSubmit.setText("Submit Order"); }
+                    showSuccessDialog();
+                } catch (Exception e) {
+                    android.util.Log.e("MainActivity", "Error in transitionToSuccess delayed callback", e);
+                }
+            }, 900);
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Error in transitionToSuccess, falling back", e);
+            hideProgressDialog();
+            if (btnSubmit != null) { btnSubmit.setEnabled(true); btnSubmit.setText("Submit Order"); }
+            showSuccessDialog();
+        }
+    }
+
+    private boolean isNetworkAvailable() {
+        try {
+            android.net.ConnectivityManager cm =
+                    (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return true;
+            android.net.Network network = cm.getActiveNetwork();
+            if (network == null) return false;
+            android.net.NetworkCapabilities cap = cm.getNetworkCapabilities(network);
+            return cap != null && (
+                    cap.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+                    cap.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    cap.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET));
+        } catch (SecurityException e) {
+            android.util.Log.w("TelegramAPI", "ACCESS_NETWORK_STATE not granted, skipping check", e);
+            return true; // let the request attempt and fail gracefully
+        }
+    }
+
+    private String getApiErrorMessage(int httpCode) {
+        switch (httpCode) {
+            case 400: return "Invalid request — check the Chat ID.";
+            case 401: return "Unauthorized — the Bot Token is incorrect.";
+            case 403: return "Forbidden — the service is unavailable. Please contact support.";
+            case 429: return "Too many requests — please wait a moment and retry.";
+            case 500: case 502: case 503: return "Telegram server error — please try again shortly.";
+            default:  return "Unexpected error (HTTP " + httpCode + "). Please retry.";
+        }
     }
     
     private String formatOrderDataMessage(OrderData data) {
@@ -457,36 +551,51 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void showSuccessDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("Success")
-                .setMessage("Order submitted successfully to Telegram!")
-                .setPositiveButton("OK", (dialog, which) -> {
-                    clearForm();
-                    dialog.dismiss();
-                })
-                .setCancelable(false)
-                .show();
+        try {
+            if (isFinishing() || isDestroyed()) return;
+            new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert)
+                    .setTitle("Success")
+                    .setMessage("Order submitted successfully!")
+                    .setPositiveButton("OK", (dialog, which) -> {
+                        clearForm();
+                        dialog.dismiss();
+                    })
+                    .setCancelable(false)
+                    .show();
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Failed to show success dialog", e);
+        }
     }
-    
+
     private void showErrorDialog(String title, String message) {
-        new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setMessage(message)
-                .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
-                .show();
+        try {
+            if (isFinishing() || isDestroyed()) return;
+            new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert)
+                    .setTitle(title)
+                    .setMessage(message)
+                    .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
+                    .show();
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Failed to show error dialog", e);
+        }
     }
-    
+
     private void showRetryDialog(String title, String message) {
-        new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setMessage(message)
-                .setPositiveButton("Retry", (dialog, which) -> {
-                    dialog.dismiss();
-                    submitForm();
-                })
-                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
-                .setCancelable(false)
-                .show();
+        try {
+            if (isFinishing() || isDestroyed()) return;
+            new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert)
+                    .setTitle(title)
+                    .setMessage(message)
+                    .setPositiveButton("Retry", (dialog, which) -> {
+                        dialog.dismiss();
+                        submitForm();
+                    })
+                    .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                    .setCancelable(false)
+                    .show();
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Failed to show retry dialog", e);
+        }
     }
     
     private void clearForm() {

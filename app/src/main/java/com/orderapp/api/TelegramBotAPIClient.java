@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.logging.HttpLoggingInterceptor;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Telegram Bot API Client configuration
@@ -21,7 +22,9 @@ public class TelegramBotAPIClient {
     private static final String BASE_URL = "https://api.telegram.org/";
     
     public static String getBotToken() {
-        return BOT_TOKEN;
+        // The colon in the token must be percent-encoded so Retrofit doesn't
+        // misinterpret it as a URL scheme separator in the path segment.
+        return BOT_TOKEN.replace(":", "%3A");
     }
     
     public static String getChatId() {
@@ -36,6 +39,9 @@ public class TelegramBotAPIClient {
         loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
         
         OkHttpClient httpClient = new OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
                 .addInterceptor(loggingInterceptor)
                 .addNetworkInterceptor((chain) -> {
                     android.util.Log.d("TelegramAPI", "Request URL: " + chain.request().url());
