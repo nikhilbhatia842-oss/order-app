@@ -4,6 +4,7 @@ import android.app.DatePickerDialog;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
@@ -29,6 +30,9 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
 
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -48,7 +52,9 @@ public class MainActivity extends AppCompatActivity {
     private AlertDialog progressDialog;
     private ProgressBar progressSendingBar;
     private ImageView ivSuccessTick;
-    
+    private int lastSubmittedMessageId = -1;
+    private CountDownTimer undoCountDownTimer;
+
     private DebugBroadcastReceiver debugReceiver;
     
     private SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
@@ -67,6 +73,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (undoCountDownTimer != null) {
+            undoCountDownTimer.cancel();
+        }
         if (debugReceiver != null) {
             try {
                 unregisterReceiver(debugReceiver);
@@ -291,15 +300,14 @@ public class MainActivity extends AppCompatActivity {
         String jsonData = new Gson().toJson(orderData);
         android.util.Log.d("TelegramAPI", "  - JSON: " + jsonData);
         
-        // Step 3: Format message for Telegram
-        android.util.Log.d("TelegramAPI", "✏️ STEP 3: Formatting message for Telegram...");
-        String message = formatOrderDataMessage(orderData);
-        if (message.length() > 4096) {
-            message = message.substring(0, 4093) + "...";
-        }
-        android.util.Log.d("TelegramAPI", "  - Message length: " + message.length() + " characters");
-        android.util.Log.d("TelegramAPI", "  - Message preview: " + message.substring(0, Math.min(100, message.length())) + "...");
-        android.util.Log.d("TelegramAPI", "  - Full message:\n" + message);
+        // Step 3: Format caption and JSON document for Telegram
+        android.util.Log.d("TelegramAPI", "✏️ STEP 3: Formatting caption and JSON document for Telegram...");
+        String caption = buildTelegramCaption(orderData);
+        String jsonFileName = buildJsonFileName(orderData);
+        MultipartBody.Part jsonDocument = createJsonDocumentPart(jsonData, jsonFileName);
+        android.util.Log.d("TelegramAPI", "  - Caption length: " + caption.length() + " characters");
+        android.util.Log.d("TelegramAPI", "  - Caption preview: " + caption.substring(0, Math.min(100, caption.length())) + "...");
+        android.util.Log.d("TelegramAPI", "  - JSON filename: " + jsonFileName);
         
         // Step 4: Get API configuration
         android.util.Log.d("TelegramAPI", "🔧 STEP 4: Getting API configuration...");
@@ -313,26 +321,28 @@ public class MainActivity extends AppCompatActivity {
         
         // Step 5: Build API request
         android.util.Log.d("TelegramAPI", "🔗 STEP 5: Building API request...");
-        String endpoint = "bot" + botToken + "/sendMessage";
+        String endpoint = "bot" + botToken + "/sendDocument";
         String fullUrl = "https://api.telegram.org/" + endpoint;
         android.util.Log.d("TelegramAPI", "  - Full Request URL: " + maskSensitiveData(fullUrl));
         android.util.Log.d("TelegramAPI", "  - Request Method: POST");
-        android.util.Log.d("TelegramAPI", "  - Content-Type: application/x-www-form-urlencoded");
-        android.util.Log.d("TelegramAPI", "  - Query Parameters:");
+        android.util.Log.d("TelegramAPI", "  - Content-Type: multipart/form-data");
+        android.util.Log.d("TelegramAPI", "  - Multipart Parts:");
         android.util.Log.d("TelegramAPI", "    • bot_token parameter: " + maskSensitiveData(botToken));
         android.util.Log.d("TelegramAPI", "    • chat_id=" + chatId);
-        android.util.Log.d("TelegramAPI", "    • text=(formatted message)");
+        android.util.Log.d("TelegramAPI", "    • document=" + jsonFileName);
+        android.util.Log.d("TelegramAPI", "    • caption=(formatted order summary)");
         android.util.Log.d("TelegramAPI", "    • parse_mode=HTML");
         
         // Step 6: Execute API call
         android.util.Log.d("TelegramAPI", "🚀 STEP 6: Executing API call...");
         long callStartTime = System.currentTimeMillis();
 
-        Call<TelegramResponse> call = service.sendMessage(
+        Call<TelegramResponse> call = service.sendDocument(
                 botToken,
-                chatId,
-                message,
-                "HTML"
+            createFormPart(chatId),
+            jsonDocument,
+            createFormPart(caption),
+            createFormPart("HTML")
         );
 
         android.util.Log.d("TelegramAPI", "  - Call queued at: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(new java.util.Date()));
@@ -367,6 +377,10 @@ public class MainActivity extends AppCompatActivity {
                         android.util.Log.d("TelegramAPI", "✅ SUCCESS: Order submitted successfully!");
                         long totalDuration = System.currentTimeMillis() - apiStartTime;
                         android.util.Log.d("TelegramAPI", "⏱️  Total API time: " + totalDuration + "ms");
+                        if (response.body().getResult() != null) {
+                            lastSubmittedMessageId = response.body().getResult().getMessageId();
+                            android.util.Log.d("TelegramAPI", "📋 Stored message_id for undo: " + lastSubmittedMessageId);
+                        }
                         transitionToSuccess();
                     } else {
                         String errorMsg = (response.body() != null && response.body().getDescription() != null)
@@ -549,21 +563,109 @@ public class MainActivity extends AppCompatActivity {
                 data.getSubmissionTime()
         );
     }
+
+    private String buildTelegramCaption(OrderData data) {
+        String message = formatOrderDataMessage(data);
+        if (message.length() > 1024) {
+            return message.substring(0, 1021) + "...";
+        }
+        return message;
+    }
+
+    private String buildJsonFileName(OrderData data) {
+        String shopName = data.getShopName() == null ? "order" : data.getShopName().trim();
+        String safeShopName = shopName.replaceAll("[^a-zA-Z0-9_-]+", "_").replaceAll("_+", "_");
+        if (safeShopName.isEmpty()) {
+            safeShopName = "order";
+        }
+        String timestamp = data.getSubmissionTime()
+                .replace(" ", "_")
+                .replace(":", "-");
+        return safeShopName + "_" + timestamp + ".json";
+    }
+
+    private MultipartBody.Part createJsonDocumentPart(String jsonData, String fileName) {
+        RequestBody documentBody = RequestBody.create(
+                jsonData,
+                MediaType.get("application/json; charset=utf-8")
+        );
+        return MultipartBody.Part.createFormData("document", fileName, documentBody);
+    }
+
+    private RequestBody createFormPart(String value) {
+        return RequestBody.create(value, MultipartBody.FORM);
+    }
     
     private void showSuccessDialog() {
         try {
             if (isFinishing() || isDestroyed()) return;
-            new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert)
+
+            final int messageIdForUndo = lastSubmittedMessageId;
+
+            AlertDialog dialog = new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert)
                     .setTitle("Success")
                     .setMessage("Order submitted successfully!")
-                    .setPositiveButton("OK", (dialog, which) -> {
+                    .setPositiveButton("OK", (d, which) -> {
+                        if (undoCountDownTimer != null) undoCountDownTimer.cancel();
                         clearForm();
-                        dialog.dismiss();
+                        d.dismiss();
                     })
+                    .setNeutralButton("Undo (10)", null) // listener set after show() to prevent auto-dismiss
                     .setCancelable(false)
                     .show();
+
+            Button undoButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+            undoButton.setTextColor(android.graphics.Color.parseColor("#E53935"));
+            undoButton.setTypeface(undoButton.getTypeface(), android.graphics.Typeface.BOLD);
+            undoButton.setOnClickListener(v -> {
+                if (undoCountDownTimer != null) undoCountDownTimer.cancel();
+                dialog.dismiss();
+                deleteSubmittedMessage(messageIdForUndo);
+            });
+
+            undoCountDownTimer = new CountDownTimer(10_000, 1_000) {
+                @Override
+                public void onTick(long millisUntilFinished) {
+                    long secsLeft = millisUntilFinished / 1_000;
+                    if (!isFinishing() && !isDestroyed() && dialog.isShowing()) {
+                        undoButton.setText("Undo (" + secsLeft + ")");
+                    }
+                }
+
+                @Override
+                public void onFinish() {
+                    if (!isFinishing() && !isDestroyed() && dialog.isShowing()) {
+                        dialog.dismiss();
+                        clearForm();
+                    }
+                }
+            }.start();
+
         } catch (Exception e) {
             android.util.Log.e("MainActivity", "Failed to show success dialog", e);
+        }
+    }
+
+    private void deleteSubmittedMessage(int messageId) {
+        if (messageId <= 0) return;
+        lastSubmittedMessageId = -1;
+        try {
+            TelegramBotService service = TelegramBotAPIClient.createService();
+            String botToken = TelegramBotAPIClient.getBotToken();
+            String chatId = TelegramBotAPIClient.getChatId();
+            service.deleteMessage(botToken, chatId, messageId).enqueue(new Callback<TelegramResponse>() {
+                @Override
+                public void onResponse(Call<TelegramResponse> call, Response<TelegramResponse> response) {
+                    android.util.Log.d("TelegramAPI", "deleteMessage response: HTTP " + response.code());
+                }
+
+                @Override
+                public void onFailure(Call<TelegramResponse> call, Throwable t) {
+                    android.util.Log.e("TelegramAPI", "deleteMessage failed: " + (t != null ? t.getMessage() : "unknown"));
+                }
+            });
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "deleteSubmittedMessage error", e);
         }
     }
 
