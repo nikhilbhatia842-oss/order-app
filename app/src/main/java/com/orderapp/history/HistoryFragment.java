@@ -1,5 +1,6 @@
 package com.orderapp.history;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -65,8 +66,9 @@ public class HistoryFragment extends Fragment {
     // ─── Data loading ──────────────────────────────────────────────────────────
 
     private void loadHistory() {
+        Context appCtx = requireContext().getApplicationContext();
         Executors.newSingleThreadExecutor().execute(() -> {
-            List<OrderRecord> records = AppDatabase.getInstance(requireContext())
+            List<OrderRecord> records = AppDatabase.getInstance(appCtx)
                     .orderRecordDao().getAllOrdersSortedByDate();
             new Handler(Looper.getMainLooper()).post(() -> {
                 if (!isAdded()) return;
@@ -110,8 +112,9 @@ public class HistoryFragment extends Fragment {
 
     private void deleteOrder(OrderRecord record) {
         // 1. Delete local record from DB
+        Context appCtx = requireContext().getApplicationContext();
         Executors.newSingleThreadExecutor().execute(() -> {
-            AppDatabase.getInstance(requireContext()).orderRecordDao().deleteById(record.id);
+            AppDatabase.getInstance(appCtx).orderRecordDao().deleteById(record.id);
             new Handler(Looper.getMainLooper()).post(() -> {
                 if (!isAdded()) return;
                 Toast.makeText(requireContext(), "Local record deleted", Toast.LENGTH_SHORT).show();
@@ -134,23 +137,21 @@ public class HistoryFragment extends Fragment {
                             && response.body().isSuccess();
                     android.util.Log.d("DebugDelete",
                             "deleteMessage HTTP " + response.code() + " ok=" + ok);
-                    if (isAdded()) {
-                        new Handler(Looper.getMainLooper()).post(() ->
-                            Toast.makeText(requireContext(),
-                                    ok ? "Order notification removed" : "Could not remove order notification (HTTP " + response.code() + ")",
-                                    Toast.LENGTH_SHORT).show()
-                        );
-                    }
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        if (!isAdded()) return;
+                        Toast.makeText(requireContext(),
+                                ok ? "Order notification removed" : "Could not remove order notification (HTTP " + response.code() + ")",
+                                Toast.LENGTH_SHORT).show();
+                    });
                 }
 
                 @Override
                 public void onFailure(Call<TelegramResponse> call, Throwable t) {
                     android.util.Log.e("DebugDelete", "deleteMessage failed: " + (t != null ? t.getMessage() : "unknown"));
-                    if (isAdded()) {
-                        new Handler(Looper.getMainLooper()).post(() ->
-                            Toast.makeText(requireContext(), "Could not remove order notification: network error", Toast.LENGTH_SHORT).show()
-                        );
-                    }
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        if (!isAdded()) return;
+                        Toast.makeText(requireContext(), "Could not remove order notification: network error", Toast.LENGTH_SHORT).show();
+                    });
                 }
             });
         }

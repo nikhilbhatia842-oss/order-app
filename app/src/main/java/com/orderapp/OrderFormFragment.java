@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.DatePickerDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
@@ -55,6 +56,9 @@ import retrofit2.Response;
 
 public class OrderFormFragment extends Fragment {
 
+    private static final String PREFS_NAME = "order_app_prefs";
+    private static final String KEY_SALESMAN_NAME = "salesman_name";
+
     private EditText etShopName;
     private EditText etOrderDate;
     private EditText etSalesmanName;
@@ -96,6 +100,7 @@ public class OrderFormFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         initializeViews(view);
         setupListeners();
+        autoFillSalesmanName();
     }
 
     @Override
@@ -104,6 +109,24 @@ public class OrderFormFragment extends Fragment {
         if (undoCountDownTimer != null) {
             undoCountDownTimer.cancel();
         }
+    }
+
+    // ─── Salesman name persistence ────────────────────────────────────────────
+
+    private void autoFillSalesmanName() {
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String saved = prefs.getString(KEY_SALESMAN_NAME, "");
+        if (!saved.isEmpty()) {
+            etSalesmanName.setText(saved);
+            etSalesmanName.setSelection(saved.length());
+        }
+    }
+
+    private void saveSalesmanName(String name) {
+        requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_SALESMAN_NAME, name)
+                .apply();
     }
 
     // ─── Contact picker ────────────────────────────────────────────────────────
@@ -282,6 +305,7 @@ public class OrderFormFragment extends Fragment {
             OrderData orderData = new OrderData(shopName, orderDate, salesmanName, boxes,
                     specification, amount, location, phoneNumber);
             android.util.Log.d("SubmitOrder", "✅ OrderData created: " + new Gson().toJson(orderData));
+            saveSalesmanName(salesmanName);
             sendToTelegram(orderData);
         } catch (NumberFormatException e) {
             showErrorDialog("Error", "Invalid number format in the boxes or amount field.");
@@ -396,8 +420,9 @@ public class OrderFormFragment extends Fragment {
      */
     private void saveToHistory(OrderRecord record) {
         if (record == null) return;
+        Context appCtx = requireContext().getApplicationContext();
         Executors.newSingleThreadExecutor().execute(() ->
-            AppDatabase.getInstance(requireContext()).orderRecordDao().insertOrder(record)
+            AppDatabase.getInstance(appCtx).orderRecordDao().insertOrder(record)
         );
     }
 
@@ -587,7 +612,7 @@ public class OrderFormFragment extends Fragment {
     private void clearForm() {
         etShopName.setText("");
         etOrderDate.setText("");
-        etSalesmanName.setText("");
+        // Salesman name is intentionally kept — it is auto-filled from saved preferences
         etNumberOfBoxes.setText("");
         etSpecification.setText("");
         etAmountPerBox.setText("");
