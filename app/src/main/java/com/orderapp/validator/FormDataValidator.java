@@ -14,7 +14,7 @@ public class FormDataValidator {
     private static final int SALESMAN_NAME_MAX = 100;
     private static final int SPECIFICATION_MAX = 500;
     private static final int LOCATION_MAX = 100;
-    private static final Pattern INDIAN_PHONE_PATTERN = Pattern.compile("^[6-9]\\d{9}$|^\\+91[6-9]\\d{9}$");
+    private static final Pattern PHONE_PATTERN = Pattern.compile("^\\+?[0-9]{6,15}$");
     
     public static class ValidationError {
         public String field;
@@ -112,10 +112,10 @@ public class FormDataValidator {
             return new ValidationError("Phone Number", "Phone number is required");
         }
         
-        String cleanPhone = phone.replaceAll("[\\s-]", "");
+        String cleanPhone = phone.replaceAll("[\\s\\-().]", "");
         
-        if (!INDIAN_PHONE_PATTERN.matcher(cleanPhone).matches()) {
-            return new ValidationError("Phone Number", "Enter a valid Indian phone number (10 digits)");
+        if (!PHONE_PATTERN.matcher(cleanPhone).matches()) {
+            return new ValidationError("Phone Number", "Enter a valid phone number (6-15 digits, with optional + country code)");
         }
         
         return null;

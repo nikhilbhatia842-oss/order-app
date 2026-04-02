@@ -1,0 +1,20 @@
+package com.orderapp.db;
+
+import androidx.room.Dao;
+import androidx.room.Insert;
+import androidx.room.Query;
+
+import java.util.List;
+
+@Dao
+public interface OrderRecordDao {
+
+    @Insert
+    void insertOrder(OrderRecord order);
+
+    @Query("SELECT * FROM order_history ORDER BY submittedAt DESC")
+    List<OrderRecord> getAllOrdersSortedByDate();
+
+    @Query("DELETE FROM order_history WHERE id = :id")
+    void deleteById(int id);
+}

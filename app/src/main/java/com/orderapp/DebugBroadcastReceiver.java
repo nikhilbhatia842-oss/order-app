@@ -12,6 +12,9 @@ import com.orderapp.api.TelegramBotService;
 import com.orderapp.api.TelegramResponse;
 import com.orderapp.model.OrderData;
 
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -56,14 +59,18 @@ public class DebugBroadcastReceiver extends BroadcastReceiver {
         Log.d(TAG, "Bot Token: " + botToken);
         Log.d(TAG, "Chat ID: " + chatId);
         
-        String message = formatOrderDataMessage(sampleData);
-        Log.d(TAG, "Message to send: " + message);
+        String caption = buildTelegramCaption(sampleData);
+        String jsonData = new Gson().toJson(sampleData);
+        String jsonFileName = buildJsonFileName(sampleData);
+        Log.d(TAG, "Caption to send: " + caption);
+        Log.d(TAG, "JSON filename: " + jsonFileName);
         
-        Call<TelegramResponse> call = service.sendMessage(
+        Call<TelegramResponse> call = service.sendDocument(
                 botToken,
-                chatId,
-                message,
-                "HTML"
+            createFormPart(chatId),
+            createJsonDocumentPart(jsonData, jsonFileName),
+            createFormPart(caption),
+            createFormPart("HTML")
         );
         
         call.enqueue(new Callback<TelegramResponse>() {
@@ -117,5 +124,37 @@ public class DebugBroadcastReceiver extends BroadcastReceiver {
                 data.getPhoneNumber(),
                 data.getSubmissionTime()
         );
+    }
+
+    private String buildTelegramCaption(OrderData data) {
+        String message = formatOrderDataMessage(data);
+        if (message.length() > 1024) {
+            return message.substring(0, 1021) + "...";
+        }
+        return message;
+    }
+
+    private String buildJsonFileName(OrderData data) {
+        String shopName = data.getShopName() == null ? "order" : data.getShopName().trim();
+        String safeShopName = shopName.replaceAll("[^a-zA-Z0-9_-]+", "_").replaceAll("_+", "_");
+        if (safeShopName.isEmpty()) {
+            safeShopName = "order";
+        }
+        String timestamp = data.getSubmissionTime()
+                .replace(" ", "_")
+                .replace(":", "-");
+        return safeShopName + "_" + timestamp + ".json";
+    }
+
+    private MultipartBody.Part createJsonDocumentPart(String jsonData, String fileName) {
+        RequestBody documentBody = RequestBody.create(
+                jsonData,
+                MediaType.get("application/json; charset=utf-8")
+        );
+        return MultipartBody.Part.createFormData("document", fileName, documentBody);
+    }
+
+    private RequestBody createFormPart(String value) {
+        return RequestBody.create(value, MultipartBody.FORM);
     }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run this script to build and install the app on your connected Android device."""
+"""Run this script to build and install the RELEASE app on your connected Android device."""
 import subprocess, os, glob, sys
 
 JAVA_HOME = "/opt/homebrew/opt/openjdk@17"
@@ -23,13 +23,17 @@ env["JAVA_HOME"]    = JAVA_HOME
 env["PATH"]         = JAVA_HOME + "/bin:" + env.get("PATH", "")
 env["ANDROID_HOME"] = ANDROID_HOME
 
-print("Building and installing app on connected device...")
+print("Building release APK (signed with .envKey/release.keystore)...")
 print("(Make sure your phone is connected via USB with USB Debugging enabled)\n")
 
-r = subprocess.run([gradle_bin, "installDebug"], cwd=PROJECT, env=env)
+# Uninstall existing app first to avoid signature mismatch errors
+print("Uninstalling existing app (if any)...")
+subprocess.run(["adb", "uninstall", "com.orderapp"], env=env, capture_output=True)
+
+r = subprocess.run([gradle_bin, "installRelease"], cwd=PROJECT, env=env)
 
 if r.returncode == 0:
-    print("\nSUCCESS! App installed. Look for 'Order App' on your device.")
+    print("\nSUCCESS! Release app installed. Look for 'Order App' on your device.")
 else:
     print("\nBuild failed. Check the output above for errors.")
 

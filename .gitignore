@@ -26,3 +26,6 @@ Thumbs.db
 # Build outputs
 /release/
 /debug/
+
+# Signing keys (never commit to version control)
+.envKey/

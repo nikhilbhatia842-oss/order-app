@@ -1,6 +1,6 @@
 # Order App - Android Telegram Integration
 
-A complete Android application for submitting order data to a Telegram bot.
+A complete Android application for submitting order data to a Telegram bot, with phonebook integration for quick phone number selection.
 
 ## Features
 
@@ -20,7 +20,7 @@ A complete Android application for submitting order data to a Telegram bot.
 - Amount per Box: Required, positive decimal
 - **Total Amount**: Auto-calculated (read-only) = Boxes × Amount
 - Location: Required, max 100 chars
-- Phone Number: Required, valid Indian 10-digit format
+- Phone Number: Required, valid phone number (6–15 digits, any country code)
 
 ✅ **Telegram Integration**
 - Direct API integration with Telegram Bot
@@ -28,6 +28,18 @@ A complete Android application for submitting order data to a Telegram bot.
 - Beautiful HTML formatted messages in Telegram
 - Error handling with retry mechanism
 - Loading states
+
+✅ **Phonebook / Contacts Picker**
+- Tap the contacts icon on the right side of the Phone Number field
+- System contacts picker opens — select any saved contact
+- Phone number auto-fills the field instantly
+- Accepts numbers saved with or without country code
+- Graceful permission denial — manual entry still works
+
+✅ **International Phone Support**
+- Accepts any phone number in format `+[country code][number]` or bare digits
+- 6 to 15 digits (strips spaces, dashes, dots, brackets before validation)
+- Not restricted to Indian numbers
 
 ✅ **Error Handling**
 - Field-level validation with user-friendly messages
@@ -64,6 +76,10 @@ OrderApp/
 ├── build.gradle
 └── settings.gradle
 ```
+
+## Quick Start
+
+Run `python3 install.py` with your Android device connected via USB to build and install in one step.
 
 ## Required Dependencies
 
@@ -150,7 +166,7 @@ Submitted at: 2026-03-22 14:30:45
 | Specification | 0 | 500 | Text (optional) |
 | Amount/Box | - | - | Decimal > 0 |
 | Location | 1 | 100 | Text |
-| Phone | 10 | 10 | Indian format |
+| Phone | 6 | 15 | Any format (optional + country code) |
 
 ## Troubleshooting
 
@@ -184,6 +200,7 @@ Submitted at: 2026-03-22 14:30:45
 ## Permissions Required
 
 - `android.permission.INTERNET` - For Telegram API calls
+- `android.permission.READ_CONTACTS` - For phonebook picker (runtime permission, requested on first use)
 
 ## Testing
 
@@ -198,7 +215,7 @@ Submitted at: 2026-03-22 14:30:45
 - ✅ Placeholder tokens/chat IDs are ready to be replaced
 - ✅ All fields include proper validation
 - ✅ Currency is set to Indian Rupee (₹)
-- ✅ Phone validation for Indian numbers (6-9 as first digit)
+- ✅ Phone validation accepts any international number (6–15 digits, optional country code)
 - ✅ Total amount is auto-calculated and read-only
 - ✅ Material Design 3 with modern UI
 - ✅ Error handling with user-friendly messages
@@ -211,6 +228,7 @@ Submitted at: 2026-03-22 14:30:45
 - Image attachments
 - Signature capture
 - Barcode scanning
+- Dark mode support
 
 ## License
 
