@@ -34,6 +34,7 @@ public class HistoryFragment extends Fragment {
 
     private RecyclerView rvHistory;
     private TextView tvEmpty;
+    private TextView tvAppVersion;
     private HistoryAdapter adapter;
 
     @Override
@@ -46,6 +47,12 @@ public class HistoryFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         rvHistory = view.findViewById(R.id.rv_history);
         tvEmpty   = view.findViewById(R.id.tv_empty_history);
+        tvAppVersion = view.findViewById(R.id.tv_app_version);
+        tvAppVersion.setText(getString(
+            R.string.app_version_format,
+            BuildConfig.VERSION_NAME,
+            BuildConfig.VERSION_CODE
+        ));
 
         // Long-press listener is only wired in debug builds; null otherwise (adapter ignores it)
         HistoryAdapter.OnItemLongClickListener longPress = BuildConfig.DEBUG

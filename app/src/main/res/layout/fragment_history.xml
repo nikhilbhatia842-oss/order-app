@@ -34,6 +34,16 @@
             android:alpha="0.75"
             android:layout_marginTop="4dp" />
 
+        <TextView
+            android:id="@+id/tv_app_version"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:alpha="0.72"
+            android:gravity="end"
+            android:textColor="@color/white"
+            android:textSize="11sp" />
+
     </LinearLayout>
 
     <!-- Body -->

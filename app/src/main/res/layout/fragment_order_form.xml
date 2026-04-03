@@ -116,11 +116,15 @@
                         app:startIconTint="@color/primary"
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
-                        <com.google.android.material.textfield.TextInputEditText
+                        <com.google.android.material.textfield.MaterialAutoCompleteTextView
                             android:id="@+id/et_shop_name"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:completionThreshold="1"
+                            android:dropDownHeight="wrap_content"
+                            android:dropDownVerticalOffset="4dp"
                             android:hint="Enter shop name"
+                            android:popupBackground="@drawable/bg_shop_suggestion_dropdown"
                             android:textColorHint="@color/text_light"
                             android:inputType="textCapWords"
                             android:maxLength="100"

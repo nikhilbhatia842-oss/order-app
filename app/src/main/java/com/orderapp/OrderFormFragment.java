@@ -18,6 +18,7 @@ import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -32,6 +33,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.gson.Gson;
 import com.orderapp.api.TelegramBotAPIClient;
@@ -42,10 +44,16 @@ import com.orderapp.db.OrderRecord;
 import com.orderapp.model.OrderData;
 import com.orderapp.validator.FormDataValidator;
 
+import java.util.ArrayList;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -58,8 +66,10 @@ public class OrderFormFragment extends Fragment {
 
     private static final String PREFS_NAME = "order_app_prefs";
     private static final String KEY_SALESMAN_NAME = "salesman_name";
+    private static final int MAX_SHOP_SUGGESTIONS = 20;
+    private static final long SHOP_SUGGESTION_DELAY_MS = 250L;
 
-    private EditText etShopName;
+    private MaterialAutoCompleteTextView etShopName;
     private EditText etOrderDate;
     private EditText etSalesmanName;
     private EditText etNumberOfBoxes;
@@ -77,6 +87,13 @@ public class OrderFormFragment extends Fragment {
     private ImageView ivSuccessTick;
     private int lastSubmittedMessageId = -1;
     private CountDownTimer undoCountDownTimer;
+    private ArrayAdapter<String> shopSuggestionAdapter;
+    private final Map<String, OrderRecord> shopSuggestionRecords = new LinkedHashMap<>();
+    private final Handler shopSuggestionHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
+    private Runnable pendingShopSuggestionLookup;
+    private int shopSuggestionRequestId = 0;
+    private boolean isApplyingShopSuggestion;
 
     /** Built in memory on success — saved to DB only if the user does NOT press Undo. */
     private OrderRecord pendingRecord;
@@ -109,6 +126,8 @@ public class OrderFormFragment extends Fragment {
         if (undoCountDownTimer != null) {
             undoCountDownTimer.cancel();
         }
+        cancelPendingShopSuggestionLookup();
+        backgroundExecutor.shutdownNow();
     }
 
     // ─── Salesman name persistence ────────────────────────────────────────────
@@ -205,6 +224,45 @@ public class OrderFormFragment extends Fragment {
     private void setupListeners() {
         etOrderDate.setOnClickListener(v -> showDatePicker());
 
+        shopSuggestionAdapter = new ArrayAdapter<>(
+                requireContext(),
+            R.layout.item_shop_suggestion,
+                new ArrayList<>()
+        );
+        etShopName.setAdapter(shopSuggestionAdapter);
+        etShopName.setOnItemClickListener((parent, view, position, id) -> {
+            String selectedShop = shopSuggestionAdapter.getItem(position);
+            if (selectedShop == null) {
+                return;
+            }
+            OrderRecord record = shopSuggestionRecords.get(selectedShop);
+            if (record != null) {
+                applyShopSuggestion(record);
+            }
+        });
+        etShopName.setOnFocusChangeListener((v, hasFocus) -> {
+            if (!hasFocus) {
+                etShopName.dismissDropDown();
+                return;
+            }
+            CharSequence currentText = etShopName.getText();
+            if (currentText != null && currentText.length() > 0 && !shopSuggestionRecords.isEmpty()) {
+                etShopName.showDropDown();
+            }
+        });
+        etShopName.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (isApplyingShopSuggestion) {
+                    return;
+                }
+                scheduleShopSuggestionLookup(s != null ? s.toString() : "");
+            }
+        });
+
         TextWatcher numberWatcher = new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
@@ -215,6 +273,142 @@ public class OrderFormFragment extends Fragment {
 
         tilPhoneNumber.setEndIconOnClickListener(v -> openContactsPicker());
         btnSubmit.setOnClickListener(v -> showConfirmationDialog());
+    }
+
+    private void scheduleShopSuggestionLookup(String query) {
+        cancelPendingShopSuggestionLookup();
+
+        String normalizedQuery = query.trim();
+        if (normalizedQuery.isEmpty()) {
+            clearShopSuggestions();
+            return;
+        }
+
+        final int requestId = ++shopSuggestionRequestId;
+        pendingShopSuggestionLookup = () -> {
+            pendingShopSuggestionLookup = null;
+            loadShopSuggestions(normalizedQuery, requestId);
+        };
+        shopSuggestionHandler.postDelayed(pendingShopSuggestionLookup, SHOP_SUGGESTION_DELAY_MS);
+    }
+
+    private void cancelPendingShopSuggestionLookup() {
+        if (pendingShopSuggestionLookup != null) {
+            shopSuggestionHandler.removeCallbacks(pendingShopSuggestionLookup);
+            pendingShopSuggestionLookup = null;
+        }
+        shopSuggestionRequestId++;
+    }
+
+    private void loadShopSuggestions(String query, int requestId) {
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        Context appContext = context.getApplicationContext();
+        if (backgroundExecutor.isShutdown()) {
+            return;
+        }
+
+        try {
+            backgroundExecutor.execute(() -> {
+                List<OrderRecord> rawMatches = AppDatabase.getInstance(appContext)
+                        .orderRecordDao()
+                        .findRecentOrdersByShopPrefix(query, MAX_SHOP_SUGGESTIONS);
+
+                LinkedHashMap<String, OrderRecord> deduplicated = new LinkedHashMap<>();
+                for (OrderRecord record : rawMatches) {
+                    if (record.shopName == null) {
+                        continue;
+                    }
+
+                    String shopName = record.shopName.trim();
+                    if (shopName.isEmpty()) {
+                        continue;
+                    }
+
+                    String normalizedName = shopName.toLowerCase(Locale.ROOT);
+                    if (!deduplicated.containsKey(normalizedName)) {
+                        deduplicated.put(normalizedName, record);
+                    }
+                }
+
+                ArrayList<String> suggestions = new ArrayList<>(deduplicated.size());
+                LinkedHashMap<String, OrderRecord> latestRecords = new LinkedHashMap<>();
+                for (OrderRecord record : deduplicated.values()) {
+                    String shopName = record.shopName.trim();
+                    suggestions.add(shopName);
+                    latestRecords.put(shopName, record);
+                }
+
+                shopSuggestionHandler.post(() -> showShopSuggestions(query, requestId, suggestions, latestRecords));
+            });
+        } catch (RejectedExecutionException ignored) {
+            // The fragment is being torn down; dropping stale suggestion work is expected.
+        }
+    }
+
+    private void showShopSuggestions(
+            String query,
+            int requestId,
+            List<String> suggestions,
+            Map<String, OrderRecord> latestRecords) {
+        if (!isAdded() || etShopName == null) {
+            return;
+        }
+        if (requestId != shopSuggestionRequestId) {
+            return;
+        }
+
+        String currentText = etShopName.getText() != null ? etShopName.getText().toString().trim() : "";
+        if (!currentText.equalsIgnoreCase(query)) {
+            return;
+        }
+
+        shopSuggestionRecords.clear();
+        shopSuggestionRecords.putAll(latestRecords);
+        shopSuggestionAdapter.clear();
+        shopSuggestionAdapter.addAll(suggestions);
+        shopSuggestionAdapter.notifyDataSetChanged();
+
+        if (suggestions.isEmpty() || !etShopName.hasFocus()) {
+            etShopName.dismissDropDown();
+            return;
+        }
+
+        etShopName.showDropDown();
+    }
+
+    private void clearShopSuggestions() {
+        shopSuggestionRecords.clear();
+        if (shopSuggestionAdapter != null) {
+            shopSuggestionAdapter.clear();
+            shopSuggestionAdapter.notifyDataSetChanged();
+        }
+        if (etShopName != null) {
+            etShopName.dismissDropDown();
+        }
+    }
+
+    private void applyShopSuggestion(OrderRecord record) {
+        isApplyingShopSuggestion = true;
+        try {
+            String shopName = record.shopName != null ? record.shopName.trim() : "";
+            etShopName.setText(shopName, false);
+            etShopName.setSelection(shopName.length());
+
+            etSalesmanName.setText(record.salesmanName != null ? record.salesmanName : "");
+            etNumberOfBoxes.setText(record.numberOfBoxes > 0 ? String.valueOf(record.numberOfBoxes) : "");
+            etSpecification.setText(record.specification != null ? record.specification : "");
+            etAmountPerBox.setText(record.amountPerBox > 0 ? String.format(Locale.getDefault(), "%.2f", record.amountPerBox) : "");
+            etLocation.setText(record.location != null ? record.location : "");
+            etPhoneNumber.setText(record.phoneNumber != null ? record.phoneNumber : "");
+            calculateTotalAmount();
+        } finally {
+            isApplyingShopSuggestion = false;
+            cancelPendingShopSuggestionLookup();
+            clearShopSuggestions();
+        }
     }
 
     // ─── Date picker ───────────────────────────────────────────────────────────
@@ -610,6 +804,7 @@ public class OrderFormFragment extends Fragment {
     // ─── Form helpers ──────────────────────────────────────────────────────────
 
     private void clearForm() {
+        isApplyingShopSuggestion = true;
         etShopName.setText("");
         etOrderDate.setText("");
         // Salesman name is intentionally kept — it is auto-filled from saved preferences
@@ -619,6 +814,9 @@ public class OrderFormFragment extends Fragment {
         tvTotalAmount.setText("₹ 0.00");
         etLocation.setText("");
         etPhoneNumber.setText("");
+        isApplyingShopSuggestion = false;
+        cancelPendingShopSuggestionLookup();
+        clearShopSuggestions();
         etShopName.requestFocus();
     }
 
